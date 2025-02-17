@@ -28,9 +28,9 @@ namespace infini
         // REF: https://github.com/onnx/onnx/blob/main/docs/Operators.md#gemm
         // =================================== 作业 ===================================
         auto A = inputs[0]->getDims();
-        auto rankA = inputs[0]->getRank();
+        int rankA = (int)inputs[0]->getRank();
         auto B = inputs[1]->getDims();
-        auto rankB = inputs[1]->getRank();
+        int rankB = (int)inputs[1]->getRank();
 
         if (getTransA()) { std::swap(A[rankA - 1], A[rankA - 2]); }
         if (getTransB()) { std::swap(B[rankB - 1], B[rankB - 2]); }

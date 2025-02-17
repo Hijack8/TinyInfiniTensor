@@ -18,7 +18,7 @@ optional<vector<Shape>> ConcatObj::inferShape(const TensorVec &inputs) {
     // =================================== 作业 ===================================
 
     int dim = getDim();
-    for (int i = 1; i < inputs.size(); i ++) {
+    for (int i = 1; i < (int)inputs.size(); i ++) {
       dims[dim] += inputs[i]->getDims()[dim];
     }
     return {{dims}};

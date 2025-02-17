@@ -143,7 +143,7 @@ namespace infini
         for (auto op : ops)
         {
             auto pre_ops = op->getPredecessors();
-            if ((int)pre_ops.size() > 1 || pre_ops.size() == 0)
+            if ((int)pre_ops.size() > 1 || (int)pre_ops.size() == 0)
                 continue;
             auto &pre_op = pre_ops[0];
             if (check_opp(op, pre_op))
