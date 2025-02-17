@@ -108,7 +108,7 @@ namespace infini
             auto va = pa->getPermute();
             auto vb = pb->getPermute();
             IT_ASSERT(va.size() == vb.size());
-            for (int i = 0; i < va.size(); i++)
+            for (int i = 0; i < (int)va.size(); i++)
                 if (va[vb[i]] != i)
                     return false;
             std::cout << "a and b is oppsite" << std::endl;
@@ -121,12 +121,12 @@ namespace infini
     {
         TransposeObj *pa = dynamic_cast<TransposeObj *>(a.get());
         auto va = pa->getPermute();
-        if (va.size() < 2)
+        if ((int)va.size() < 2)
             return false;
-        for (int i = 0; i < va.size() - 2; i++)
+        for (int i = 0; i < (int)va.size() - 2; i++)
             if (va[i] != i)
                 return false;
-        return va.back() == va.size() - 2;
+        return va.back() == (int)va.size() - 2;
     }
     void GraphObj::optimize()
     {
@@ -139,12 +139,11 @@ namespace infini
         IT_ASSERT(topo_sort());
 
         auto ops = getOperators();
-        int n = ops.size();
         std::vector<Operator> to_remove;
         for (auto op : ops)
         {
             auto pre_ops = op->getPredecessors();
-            if (pre_ops.size() > 1 || pre_ops.size() == 0)
+            if ((int)pre_ops.size() > 1 || pre_ops.size() == 0)
                 continue;
             auto &pre_op = pre_ops[0];
             if (check_opp(op, pre_op))
@@ -191,7 +190,7 @@ namespace infini
                 continue;
             }
             auto inputs_trans = op->getInputs();
-            for (int i = 0; i < inputs_trans.size(); i++)
+            for (int i = 0; i < (int)inputs_trans.size(); i++)
             {
                 auto pre_op = inputs_trans[i]->getSource();
                 if (!pre_op || pre_op->getOpType() != OpType::Transpose)
