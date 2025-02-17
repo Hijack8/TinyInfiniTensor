@@ -10,7 +10,20 @@ Shape infer_broadcast(const Shape &A, const Shape &B) {
     // REF: https://github.com/onnx/onnx/blob/main/docs/Broadcasting.md
     // =================================== 作业 ===================================
     
-    return {};
+    auto tmpA = A;
+    auto tmpB = B;
+    if (tmpA.size() < tmpB.size()) {
+      auto tmp = tmpA;
+      tmpA = tmpB;
+      tmpB = tmp;
+    }
+    int sa = tmpA.size(); 
+    int sb = tmpB.size();
+    for (int i = 0; i < sb; i ++) {
+      // i + (sa - sb)
+      if (tmpA[i + sa - sb] == 1) tmpA[i + sa - sb] = tmpB[i];
+    }
+    return tmpA;
 }
 
 int get_real_axis(const int &axis, const int &rank) {

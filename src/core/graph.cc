@@ -2,7 +2,8 @@
 #include <algorithm>
 #include <numeric>
 #include <queue>
-
+#include "operators/transpose.h"
+#include "operators/matmul.h"
 namespace infini
 {
 
@@ -98,14 +99,134 @@ namespace infini
         return this->sorted = true;
     }
 
+    bool check_opp(Operator &a, Operator &b)
+    {
+        if (a.get()->getOpType() == OpType::Transpose && b.get()->getOpType() == OpType::Transpose)
+        {
+            TransposeObj *pa = dynamic_cast<TransposeObj *>(a.get());
+            TransposeObj *pb = dynamic_cast<TransposeObj *>(b.get());
+            auto va = pa->getPermute();
+            auto vb = pb->getPermute();
+            IT_ASSERT(va.size() == vb.size());
+            for (int i = 0; i < va.size(); i++)
+                if (va[vb[i]] != i)
+                    return false;
+            std::cout << "a and b is oppsite" << std::endl;
+            return true;
+        }
+        return false;
+    }
+
+    bool check_can_merge(Operator &a)
+    {
+        TransposeObj *pa = dynamic_cast<TransposeObj *>(a.get());
+        auto va = pa->getPermute();
+        if (va.size() < 2)
+            return false;
+        for (int i = 0; i < va.size() - 2; i++)
+            if (va[i] != i)
+                return false;
+        return va.back() == va.size() - 2;
+    }
     void GraphObj::optimize()
     {
         // =================================== 作业 ===================================
         // TODO: 设计一个算法来实现指定的图优化规则
         // 图优化规则如下：
         // 1. 去除冗余的算子（例如，两个相邻的算子都是 transpose 算子，且做的是相反的操作，可以将其全部删除）
-        // 2. 合并算子（例如，矩阵乘算子中含有属性transA、transB，如果其输入存在transpose，且对最后两个维度做交换，就可以将transpose融入到矩阵乘算子的属性中去）
+        // 2. 合并算子（例如，矩阵乘算子中含有属性 transA、transB，如果其输入存在 transpose，且对最后两个维度做交换，就可以将 transpose 融入到矩阵乘算子的属性中去）
         // =================================== 作业 ===================================
+        IT_ASSERT(topo_sort());
+
+        auto ops = getOperators();
+        int n = ops.size();
+        std::vector<Operator> to_remove;
+        for (auto op : ops)
+        {
+            auto pre_ops = op->getPredecessors();
+            if (pre_ops.size() > 1 || pre_ops.size() == 0)
+                continue;
+            auto &pre_op = pre_ops[0];
+            if (check_opp(op, pre_op))
+            {
+                // del
+
+                auto input = pre_op->getInputs()[0];
+                auto output = op->getOutputs()[0];
+                input->removeTarget(pre_op);
+                for (auto &t : output->getTargets())
+                {
+                    t->replaceInput(output, input);
+                    input->addTarget(t);
+                }
+                removeTensor(output);
+                removeTensor(op->getInputs()[0]);
+
+                auto pre_pre_ops = pre_op->getPredecessors();
+                auto next_ops = op->getSuccessors();
+                for (auto &pre_pre_op : pre_pre_ops)
+                {
+                    pre_pre_op->removeSuccessors(pre_op);
+                    for (auto &next_op : next_ops)
+                        pre_pre_op->addSuccessors(next_op);
+                }
+                for (auto &next_op : next_ops)
+                {
+                    next_op->removePredecessors(op);
+                    for (auto &pre_pre_op : pre_pre_ops)
+                        next_op->addPredecessors(pre_pre_op);
+                }
+                to_remove.push_back(op);
+                to_remove.push_back(pre_op);
+            }
+        }
+        for (auto &t : to_remove)
+            removeOperator(t);
+        to_remove.clear();
+        ops = getOperators();
+        for (auto op : ops)
+        {
+            if (op->getOpType() != OpType::MatMul)
+            {
+                continue;
+            }
+            auto inputs_trans = op->getInputs();
+            for (int i = 0; i < inputs_trans.size(); i++)
+            {
+                auto pre_op = inputs_trans[i]->getSource();
+                if (!pre_op || pre_op->getOpType() != OpType::Transpose)
+                {
+                    continue;
+                }
+
+                auto matmul_op = dynamic_cast<MatmulObj *>(op.get());
+                if (check_can_merge(pre_op))
+                {
+                    if (i == 0)
+                        matmul_op->setTransA(!matmul_op->getTransA());
+                    else
+                        matmul_op->setTransB(!matmul_op->getTransB());
+                }
+
+                auto input = pre_op->getInputs()[0];
+                input->removeTarget(pre_op);
+                input->addTarget(op);
+                op->replaceInput(pre_op->getOutputs()[0], input);
+                removeTensor(pre_op->getOutputs()[0]);
+
+                auto pre_pre_ops = pre_op->getPredecessors();
+                op->removePredecessors(pre_op);
+                for (auto pre_pre_op : pre_pre_ops)
+                {
+                    pre_pre_op->removeSuccessors(pre_op);
+                    pre_pre_op->addSuccessors(op);
+                    op->addPredecessors(pre_pre_op);
+                }
+                to_remove.push_back(pre_op);
+            }
+        }
+        for (auto &t : to_remove)
+            removeOperator(t);
     }
 
     Tensor GraphObj::getTensor(int fuid) const
@@ -145,14 +266,35 @@ namespace infini
 
     void GraphObj::dataMalloc()
     {
+        printf("dataMalloc \n");
         // topological sorting first
         IT_ASSERT(topo_sort() == true);
 
+        printf("top sort = true\n");
         // =================================== 作业 ===================================
         // TODO：利用 allocator 给计算图分配内存
         // HINT: 获取分配好的内存指针后，可以调用 tensor 的 setDataBlob 函数给 tensor 绑定内存
         // =================================== 作业 ===================================
 
+        // for (auto t : tensors) {
+        //   size_t sizex = t->getBytes();
+        //   size_t addr = allocator.alloc(sizex);
+        //   auto ptr = static_cast<char*>(allocator.getPtr()) + addr;
+        //   t->setDataBlob(make_ref<BlobObj>(this->runtime, ptr));
+        // }
+
+        size_t total_size = 0;
+        for (auto &tensor : tensors)
+        {
+            total_size += tensor->getBytes();
+        }
+        size_t addr = allocator.alloc(total_size);
+        for (auto &tensor : tensors)
+        {
+            auto ptr = static_cast<char *>(allocator.getPtr()) + addr;
+            tensor->setDataBlob(make_ref<BlobObj>(this->runtime, ptr));
+            addr += tensor->getBytes();
+        }
         allocator.info();
     }
 

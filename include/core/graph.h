@@ -4,6 +4,8 @@
 #include "core/tensor.h"
 #include <algorithm>
 #include <cstdint>
+#include "operators/transpose.h"
+#include "operators/matmul.h"
 
 namespace infini
 {
@@ -106,6 +108,9 @@ namespace infini
 
         bool checkValid() const;
 
+
+
+bool canMergeTransposeWithMatMul(std::shared_ptr<MatmulObj> matmulOp, std::shared_ptr<TransposeObj> transposeOp);
     private:
         /**
          * @brief Add reverse connections and Op relationship in ctor.
